@@ -60,9 +60,11 @@ import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.Serializable
 import java.util.UUID
 
+private val codeRegex = """```([\s\S]*?)```""".toRegex()
+
 @OptIn(InternalSerializationApi::class)
 @Serializable
-data class Message(val text: String, val author: String)
+data class Message(val id: String = UUID.randomUUID().toString(), val text: String, val author: String)
 
 @OptIn(InternalSerializationApi::class)
 @Serializable
@@ -98,7 +100,7 @@ fun EchomindApp() {
         } else {
             val initialConversation = Conversation(
                 title = "Echomind",
-                messages = listOf(Message("Hey, how can I help you?", "Bot"))
+                messages = listOf(Message(text = "Hey, how can I help you?", author = "Bot"))
             )
             conversations.add(initialConversation)
             currentConversation = initialConversation
@@ -268,7 +270,7 @@ fun ChatScreen(
                         ChatMessage(role, it.text)
                     }
                     val botResponse = chatService.sendMessage(selectedProvider, selectedModel, historyForApi)
-                    val finalConv = updatedConv.copy(messages = history + Message(botResponse, "Bot"))
+                    val finalConv = updatedConv.copy(messages = history + Message(text = botResponse, author = "Bot"))
                     onConversationUpdate(finalConv)
                 }
             }
@@ -278,7 +280,7 @@ fun ChatScreen(
             onValueChange = { newMessage = it },
             onSendMessage = {
                 if (newMessage.isNotBlank() && conversation != null) {
-                    val userMessage = Message(newMessage, "Me")
+                    val userMessage = Message(text = newMessage, author = "Me")
                     val newTitle = if (conversation.messages.isEmpty()) userMessage.text.take(25) else conversation.title
                     val updatedConv = conversation.copy(title = newTitle, messages = conversation.messages + userMessage)
                     onConversationUpdate(updatedConv)
@@ -289,7 +291,7 @@ fun ChatScreen(
                             ChatMessage(role = role, content = it.text)
                         }
                         val botResponse = chatService.sendMessage(selectedProvider, selectedModel, history)
-                        val finalConv = updatedConv.copy(messages = updatedConv.messages + Message(botResponse, "Bot"))
+                        val finalConv = updatedConv.copy(messages = updatedConv.messages + Message(text = botResponse, author = "Bot"))
                         onConversationUpdate(finalConv)
                     }
                 }
@@ -358,7 +360,7 @@ fun ProviderSelector(
 @Composable
 fun MessageList(messages: List<Message>, modifier: Modifier = Modifier, onRetry: (Message) -> Unit) {
     LazyColumn(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp), reverseLayout = true) {
-        items(messages.asReversed()) { message ->
+        items(messages.asReversed(), key = { it.id }) { message ->
             MessageBubble(message = message, onRetry = { onRetry(message) })
         }
     }
@@ -379,7 +381,6 @@ fun MessageBubble(message: Message, onRetry: () -> Unit) {
             .usePlugin(TaskListPlugin.create(context))
             .build()
     }
-    val codeRegex = """```([\s\S]*?)```""".toRegex()
     val codeBlocks = remember(message.text) {
         codeRegex.findAll(message.text).map { it.groupValues[1].trim() }.toList()
     }
