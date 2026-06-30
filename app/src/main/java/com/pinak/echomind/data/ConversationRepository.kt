@@ -1,7 +1,7 @@
 package com.pinak.echomind.data
 
 import android.content.Context
-import com.pinak.echomind.Conversation
+import com.pinak.echomind.data.model.Conversation
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.decodeFromString
