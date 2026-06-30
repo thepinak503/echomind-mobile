@@ -15,7 +15,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -25,6 +24,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.pinak.echomind.data.model.Message
+import com.pinak.echomind.util.MessageSegment
+import com.pinak.echomind.util.segmentMessage
 import io.noties.markwon.Markwon
 import io.noties.markwon.ext.strikethrough.StrikethroughPlugin
 import io.noties.markwon.ext.tables.TablePlugin
@@ -36,7 +37,7 @@ private val codeRegex = """```([\s\S]*?)```""".toRegex()
 @Composable
 fun MessageBubble(
     message: Message,
-    onRetry: () -> Unit
+    onRetry: () -> Unit,
 ) {
     val isUserMessage = message.author == "Me"
     val context = LocalContext.current
@@ -52,7 +53,13 @@ fun MessageBubble(
     }
     
     val codeBlocks = remember(message.text) {
-        codeRegex.findAll(message.text).map { it.groupValues[1].trim() }.toList()
+        codeRegex.findAll(message.text)
+            .filter { !it.value.startsWith("```mermaid") }
+            .map { it.groupValues[1].trim() }.toList()
+    }
+    
+    val segments = remember(message.text) {
+        segmentMessage(message.text)
     }
 
     val bubbleShape = if (isUserMessage) {
@@ -94,24 +101,45 @@ fun MessageBubble(
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier.fillMaxWidth(0.85f)
         ) {
-            Box(
+            Column(
                 modifier = Modifier
                     .background(bubbleBackground)
-                    .padding(12.dp)
+                    .padding(8.dp)
             ) {
-                AndroidView(
-                    factory = {
-                        TextView(it).apply {
-                            setTextIsSelectable(true)
-                            movementMethod = LinkMovementMethod.getInstance()
-                            setLinkTextColor(textColor.toArgb())
+                segments.forEach { segment ->
+                    when (segment) {
+                        is MessageSegment.Text -> {
+                            AndroidView(
+                                factory = {
+                                    TextView(it).apply {
+                                        setTextIsSelectable(true)
+                                        movementMethod = LinkMovementMethod.getInstance()
+                                        setLinkTextColor(textColor.toArgb())
+                                    }
+                                },
+                                update = {
+                                    it.setTextColor(textColor.toArgb())
+                                    markwon.setMarkdown(it, segment.content)
+                                },
+                                modifier = Modifier.padding(4.dp)
+                            )
                         }
-                    },
-                    update = {
-                        it.setTextColor(textColor.toArgb())
-                        markwon.setMarkdown(it, message.text)
+                        is MessageSegment.Mermaid -> {
+                            Surface(
+                                color = Color.White.copy(alpha = 0.1f),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                MermaidView(
+                                    mermaidCode = segment.code,
+                                    modifier = Modifier.padding(4.dp)
+                                )
+                            }
+                        }
                     }
-                )
+                }
             }
         }
 
